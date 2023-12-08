@@ -182,35 +182,38 @@ namespace pointcloud_to_laserscan
     sensor_msgs::PointCloud2Ptr cloud;
 
     // Transform cloud if necessary
-    if (!(output.header.frame_id == cloud_msg->header.frame_id))
-    {
-      NODELET_INFO_ONCE("output: %s, cloud_msg: %s", output.header.frame_id.c_str(), cloud_msg->header.frame_id.c_str());
-      // cloud_msg->header.frame_id == camera_depth_optical_frame
-      // This takes 0.3s for tranformation
-      try
-      {
-        ros::Time start = ros::Time::now();
-        cloud.reset(new sensor_msgs::PointCloud2);
-        tf2_->transform(*cloud_msg, *cloud, target_frame_, ros::Duration(tolerance_));
-        cloud_out = cloud;
-        // Calculate the elapsed time
-        ros::Duration elapsed = ros::Time::now() - start;
-        // NODELET_INFO_THROTTLE(2, "Time taken: %f seconds to transform clouds", elapsed.toSec());
-      }
-      catch (tf2::TransformException &ex)
-      {
-        NODELET_ERROR_STREAM("Transform failure: " << ex.what());
-        return;
-      }
-    }
-    else
-    {
-      cloud_out = cloud_msg;
-    }
+    // if (!(output.header.frame_id == cloud_msg->header.frame_id))
+    // {
+    //   NODELET_INFO_ONCE("output: %s, cloud_msg: %s", output.header.frame_id.c_str(), cloud_msg->header.frame_id.c_str());
+    //   // cloud_msg->header.frame_id == camera_depth_optical_frame
+    //   // This takes 0.3s for tranformation
+    //   try
+    //   {
+    //     ros::Time start = ros::Time::now();
+    //     cloud.reset(new sensor_msgs::PointCloud2);
+    //     tf2_->transform(*cloud_msg, *cloud, target_frame_, ros::Duration(tolerance_));
+    //     cloud_out = cloud;
+    //     // Calculate the elapsed time
+    //     ros::Duration elapsed = ros::Time::now() - start;
+    //     // NODELET_INFO_THROTTLE(2, "Time taken: %f seconds to transform clouds", elapsed.toSec());
+    //   }
+    //   catch (tf2::TransformException &ex)
+    //   {
+    //     NODELET_ERROR_STREAM("Transform failure: " << ex.what());
+    //     return;
+    //   }
+    // }
+    // else
+    // {
+    //   cloud_out = cloud_msg;
+    // }
+    cloud_out = cloud_msg;
 
     ros::Time start = ros::Time::now();
     // Iterate through pointcloud
-    for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"), iter_z(*cloud_out, "z"); iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
+    // Coordinate system transformation
+    // x -> z, y -> -x, z-> -y
+    for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "z"), iter_y(*cloud_out, "x"), iter_z(*cloud_out, "y"); iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
     {
       // ignore if any voxel has NaN values
       if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z))
@@ -218,15 +221,16 @@ namespace pointcloud_to_laserscan
         NODELET_DEBUG("rejected for nan in point(%f, %f, %f)\n", *iter_x, *iter_y, *iter_z);
         continue;
       }
-
+      float new_x = (*iter_x);
+      float new_y = -1 * (*iter_y);
+      float new_z = -1 * (*iter_z);
       // ignore voxels outside of [min_height, max_height]
-      if (*iter_z > max_height_ || *iter_z < min_height_)
+      if (new_z > max_height_ || new_z < min_height_)
       {
         NODELET_DEBUG("rejected for height %f not in range (%f, %f)\n", *iter_z, min_height_, max_height_);
         continue;
       }
-
-      double range = hypot(*iter_x, *iter_y); // computes the Euclidean distance of the point from the origin in the X-Y plane.
+      double range = hypot(new_x, new_y); // computes the Euclidean distance of the point from the origin in the X-Y plane.
       if (range < range_min_)
       {
         NODELET_DEBUG("rejected for range %f below minimum value %f. Point: (%f, %f, %f)", range, range_min_, *iter_x, *iter_y, *iter_z);
@@ -240,7 +244,7 @@ namespace pointcloud_to_laserscan
       }
 
       // Remove points based on angle_min and angle_max
-      double angle = atan2(*iter_y, *iter_x);
+      double angle = atan2(new_y, new_x);
       if (angle < output.angle_min || angle > output.angle_max)
       {
         NODELET_DEBUG("rejected for angle %f not in range (%f, %f)\n", angle, output.angle_min, output.angle_max);
@@ -257,7 +261,7 @@ namespace pointcloud_to_laserscan
     // Calculate the elapsed time
     ros::Duration elapsed = ros::Time::now() - start;
     // NODELET_INFO_THROTTLE(2, "Time taken: %f s -> PC to scan", elapsed.toSec());
-    // NODELET_INFO_THROTTLE(1, "Vector size: %ld ", output.ranges.size()); ~ 350
+    // NODELET_INFO_THROTTLE(1, "Vector size: %ld ", output.ranges.size()); //~ 350
 
     pub_.publish(output);
   }

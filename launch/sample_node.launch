@@ -5,9 +5,9 @@
     <arg name="camera" default="camera" />
 
     <!-- start realsense-->
-    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <!-- <include file="$(find realsense2_camera)/launch/rs_camera.launch">
         <arg name="enable_pointcloud" value="true"/>
-    </include>
+    </include> -->
 
     <!-- run pointcloud_to_laserscan node -->
     <node pkg="pointcloud_to_laserscan" type="pointcloud_to_laserscan_node" name="pointcloud_to_laserscan" output="screen">
@@ -24,9 +24,9 @@
             angle_min: -1.5708 # -M_PI/2
             angle_max: 1.5708 # M_PI/2
             angle_increment: 0.0087 # M_PI/360.0
-            scan_time: 0.3333
-            range_min: 0.45
-            range_max: 4.0
+            scan_time: 0.3333 [s]
+            range_min: 0.45 [m]
+            range_max: 4.0 [m]
             use_inf: true
             inf_epsilon: 1.0
 
